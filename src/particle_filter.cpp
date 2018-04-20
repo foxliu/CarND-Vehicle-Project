@@ -27,7 +27,8 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
   num_particles = NUM_PARTICLES;
   particles.reserve(static_cast<unsigned long>(num_particles));
 
-  default_random_engine engine;
+  random_device rd;
+  default_random_engine engine(rd());
   normal_distribution<double> dist_x(x, std[0]);
   normal_distribution<double> dist_y(y, std[1]);
   normal_distribution<double> dist_theta(theta, std[2]);
@@ -53,7 +54,9 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
   normal_distribution<double> dist_x(0, std_pos[0]);
   normal_distribution<double> dist_y(0, std_pos[1]);
   normal_distribution<double> dist_theta(0, std_pos[2]);
-  default_random_engine engine;
+
+  random_device rd;
+  default_random_engine engine(rd());
 
   double delta_theta = yaw_rate * delta_t;
 
@@ -132,6 +135,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
         sensor_landmarks.push_back(obs);
       }
     }
+    if (sensor_landmarks.size() == 0) {
+      sensor_landmarks.push_back(LandmarkObs{p.id, p.x, p.y});
+    }
 
     // coordinate transform
     vector<LandmarkObs> transform_ob_to_map;
@@ -182,25 +188,34 @@ void ParticleFilter::resample() {
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
-  vector<Particle> new_particles;
+//  vector<Particle> new_particles;
+//
+//  default_random_engine engine;
+//
+//  uniform_int_distribution<int> random_index(0, num_particles-1);
+//  int index = random_index(engine);
+//  double beta = 0;
+//  double mw = *max_element(weights.begin(), weights.end());
+//  uniform_real_distribution<double> random_beta(0.0, 1.0);
+//  for (int j = 0; j < num_particles; ++j) {
+//    beta += random_beta(engine) * 2 * mw;
+//    while (beta > weights[index]) {
+//      beta -= weights[index];
+//      index = (index + 1) % num_particles;
+//    }
+//    new_particles.push_back(particles[index]);
+//  }
+//  particles.clear();
+//  particles.insert(particles.end(), new_particles.begin(), new_particles.end());
+  random_device seed;
+  mt19937 random_generator(seed());
+  discrete_distribution<> sample(weights.begin(), weights.end());
 
-  default_random_engine engine;
-
-  uniform_int_distribution<int> random_index(0, num_particles-1);
-  int index = random_index(engine);
-  double beta = 0;
-  double mw = *max_element(weights.begin(), weights.end());
-  uniform_real_distribution<double> random_beta(0.0, 1.0);
-  for (int j = 0; j < num_particles; ++j) {
-    beta += random_beta(engine) * 2 * mw;
-    while (beta > weights[index]) {
-      beta -= weights[index];
-      index = (index + 1) % num_particles;
-    }
-    new_particles.push_back(particles[index]);
+  vector<Particle> new_particles(num_particles);
+  for (auto &p : new_particles) {
+    p = particles[sample(random_generator)];
   }
-  particles.clear();
-  particles.insert(particles.end(), new_particles.begin(), new_particles.end());
+  particles = move(new_particles);
 }
 
 void ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>& associations,
